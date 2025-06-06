@@ -7,6 +7,8 @@ A simple Streamlit web application that uses AI to understand natural language p
 - **Natural Language Understanding**: Parse user queries like "Show me red dresses under $200"
 - **Intelligent Filtering**: Filter products by category, color, price, and more
 - **Visual Recommendations**: Display matching products with images and explanations
+- **Inventory Management**: Upload your own CSV/Excel inventory or use the sample data
+- **Chat Interface**: Interactive chat-like experience for querying products
 
 ## Setup
 
@@ -26,6 +28,22 @@ streamlit run app.py
 ```
 
 The app will be available at http://localhost:8501
+
+## Usage Instructions
+
+1. **Load Inventory**: 
+   - Upload your own CSV/Excel inventory file using the upload button in the sidebar
+   - Or click "Use Sample Inventory Data" to use the default product list
+   - The sidebar will show inventory statistics once loaded
+
+2. **Query Products**:
+   - Type natural language queries in the chat input at the bottom
+   - Example: "Show me red dresses under $200"
+   - The AI will process your query and display matching products
+
+3. **View Recommendations**:
+   - Products are displayed in a grid with images and details
+   - Each product includes a reason why it matches your query
 
 ## Project Structure
 

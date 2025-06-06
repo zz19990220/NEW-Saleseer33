@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 import time
+import io
 
 # Import custom modules
 from inventory.filters import load_inventory, filter_products, get_recommendation_reasons
@@ -19,12 +20,18 @@ st.set_page_config(
     layout="wide"
 )
 
-# Initialize session state for history
+# Initialize session state
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
 if "last_filters" not in st.session_state:
     st.session_state.last_filters = {}
+
+if "inventory_df" not in st.session_state:
+    st.session_state.inventory_df = None
+
+if "using_sample_data" not in st.session_state:
+    st.session_state.using_sample_data = False
 
 
 def main():
@@ -46,28 +53,72 @@ def main():
         
         # Data source selection
         st.subheader("Data Source")
-        data_path = "inventory/products.csv"
         
-        # Display inventory stats
-        try:
-            df = load_inventory(data_path)
-            st.success(f"✅ Loaded {len(df)} products")
-            st.text(f"Categories: {', '.join(df['category'].unique())}")
-            st.text(f"Colors: {', '.join(df['color'].unique())}")
-            st.text(f"Price range: ${df['price'].min():.2f} - ${df['price'].max():.2f}")
-        except Exception as e:
-            st.error(f"❌ Error loading inventory: {e}")
-            return
-    
-    # Chat input
-    user_query = st.chat_input("What kind of product are you looking for?")
-    
-    # Process query when submitted
-    if user_query:
-        process_query(user_query, df)
+        # File uploader for custom inventory
+        uploaded_file = st.file_uploader("Upload your inventory (CSV or Excel)", type=['csv', 'xlsx'])
+        
+        # Handle file upload
+        if uploaded_file is not None:
+            try:
+                # Get file extension
+                file_ext = Path(uploaded_file.name).suffix.lower()
+                
+                if file_ext == '.csv':
+                    st.session_state.inventory_df = pd.read_csv(uploaded_file)
+                elif file_ext in ['.xlsx', '.xls']:
+                    st.session_state.inventory_df = pd.read_excel(uploaded_file)
+                
+                st.session_state.using_sample_data = False
+                st.success(f"✅ Inventory uploaded: {uploaded_file.name}")
+            except Exception as e:
+                st.error(f"❌ Error loading file: {e}")
+                st.session_state.inventory_df = None
+        
+        # Option to use sample data
+        if st.button("Use Sample Inventory Data") or (st.session_state.inventory_df is None and not st.session_state.using_sample_data):
+            try:
+                sample_path = "inventory/products.csv"
+                if os.path.exists(sample_path):
+                    st.session_state.inventory_df = load_inventory(sample_path)
+                    st.session_state.using_sample_data = True
+                    st.success(f"✅ Using sample inventory ({len(st.session_state.inventory_df)} products)")
+                else:
+                    st.warning("⚠️ Sample inventory file not found. Please upload a file.")
+                    st.session_state.inventory_df = None
+            except Exception as e:
+                st.error(f"❌ Error loading sample inventory: {e}")
+                st.session_state.inventory_df = None
+        
+        # Display inventory stats if available
+        if st.session_state.inventory_df is not None:
+            df = st.session_state.inventory_df
+            st.markdown("#### Inventory Statistics")
+            st.write(f"**Total Products:** {len(df)}")
+            
+            if 'category' in df.columns:
+                categories = df['category'].unique()
+                st.write(f"**Categories:** {', '.join(categories[:5])}" + ("..." if len(categories) > 5 else ""))
+            
+            if 'color' in df.columns:
+                colors = df['color'].unique()
+                st.write(f"**Colors:** {', '.join(colors[:5])}" + ("..." if len(colors) > 5 else ""))
+            
+            if 'price' in df.columns:
+                st.write(f"**Price range:** ${df['price'].min():.2f} - ${df['price'].max():.2f}")
     
     # Display chat history
     display_chat_history()
+    
+    # Show a placeholder message if no inventory is loaded
+    if st.session_state.inventory_df is None:
+        st.info("Please upload an inventory file or use the sample inventory to get started.")
+    
+    # Chat input
+    user_query = st.chat_input("What kind of product are you looking for?", disabled=st.session_state.inventory_df is None)
+    
+    # Process query when submitted
+    if user_query and st.session_state.inventory_df is not None:
+        process_query(user_query, st.session_state.inventory_df)
 
 
 def process_query(user_query, df):
@@ -77,15 +128,12 @@ def process_query(user_query, df):
     # Processing message
     with st.chat_message("assistant"):
         with st.status("Processing your request...", expanded=True) as status:
-            st.write("Analyzing your query...")
-            
-            # Parse query using LLM
             try:
+                st.write("Analyzing your query...")
+                
+                # Parse query using LLM
                 filters = parse_query(user_query)
                 st.session_state.last_filters = filters
-                st.write("✅ Query understood")
-                
-                status.update(label="Finding matching products...", state="running")
                 
                 if not filters:
                     status.update(label="⚠️ Couldn't parse your query. Please try again.", state="error")
@@ -94,6 +142,9 @@ def process_query(user_query, df):
                         "content": "I couldn't understand your request. Please try specifying product type, color, or price range more clearly."
                     })
                     return
+                
+                st.write(f"✅ Query understood: {filters}")
+                status.update(label="Finding matching products...", state="running")
                 
                 # Filter products
                 filtered_df = filter_products(df, filters)
@@ -120,8 +171,9 @@ def process_query(user_query, df):
                     "content": recommendation_message,
                     "products": product_cards
                 })
-                status.update(label="✅ Recommendations ready!", state="complete")
                 
+                status.update(label="✅ Recommendations ready!", state="complete")
+            
             except Exception as e:
                 status.update(label=f"❌ Error: {str(e)}", state="error")
                 st.session_state.chat_history.append({
@@ -134,19 +186,19 @@ def get_filter_summary(filters):
     """Generate a human-readable summary of the filters"""
     parts = []
     
-    if 'category' in filters:
+    if 'category' in filters and filters['category']:
         parts.append(f"in the {filters['category']} category")
     
-    if 'color' in filters:
+    if 'color' in filters and filters['color']:
         parts.append(f"in {filters['color']} color")
     
-    if 'price_max' in filters:
+    if 'price_max' in filters and filters['price_max']:
         parts.append(f"under ${filters['price_max']}")
     
-    if 'price_min' in filters:
+    if 'price_min' in filters and filters['price_min']:
         parts.append(f"over ${filters['price_min']}")
     
-    if 'min_rating' in filters:
+    if 'min_rating' in filters and filters['min_rating']:
         parts.append(f"with at least {filters['min_rating']} stars")
     
     if parts:
@@ -163,14 +215,14 @@ def generate_product_cards(df, filters):
         reason = get_recommendation_reasons(product, filters)
         
         product_cards.append({
-            "id": product['id'],
+            "id": product['id'] if 'id' in product else 0,
             "name": product['name'],
             "price": product['price'],
-            "image_url": product['image_url'],
+            "image_url": product.get('image_url', ''),
             "reason": reason,
-            "color": product['color'],
-            "category": product['category'],
-            "rating": product['rating']
+            "color": product.get('color', 'N/A'),
+            "category": product.get('category', 'N/A'),
+            "rating": product.get('rating', 0)
         })
     
     return product_cards
@@ -193,10 +245,22 @@ def display_product_recommendations(products):
     
     for i, product in enumerate(products):
         with cols[i % 3]:
-            st.image(product["image_url"], use_column_width=True)
+            if product.get("image_url"):
+                try:
+                    st.image(product["image_url"], use_column_width=True)
+                except Exception:
+                    # Fallback if image can't be loaded
+                    st.error("Image not available")
+                    
             st.markdown(f"### {product['name']}")
-            st.markdown(f"**${product['price']:.2f}** • {product['color']} • {product['rating']} ⭐")
+            st.markdown(f"**${product['price']:.2f}** • {product.get('color', 'N/A')} • {product.get('rating', 0)} ⭐")
             st.info(f"**Why this matches**: {product['reason']}")
+
+
+def export_filtered_products(df, filters):
+    """Export filtered products to CSV"""
+    filtered_df = filter_products(df, filters)
+    return filtered_df.to_csv(index=False).encode('utf-8')
 
 
 if __name__ == "__main__":
