@@ -1,0 +1,11 @@
+id,name,description,price,color,category,rating,image_url
+1,Red Summer Dress,Beautiful flowing red dress perfect for summer,149.99,red,dress,4.5,https://images.unsplash.com/photo-1572804013309-59a88b7e92f1
+2,Blue Jeans,Classic blue denim jeans,89.99,blue,pants,4.2,https://images.unsplash.com/photo-1541099649105-f69ad21f3246
+3,Black Leather Jacket,Stylish black leather jacket,299.99,black,jacket,4.8,https://images.unsplash.com/photo-1551028719-00167b16eac5
+4,White Sneakers,Comfortable white athletic shoes,79.99,white,shoes,4.3,https://images.unsplash.com/photo-1607522370275-f14206abe5d3
+5,Green T-Shirt,Casual green cotton t-shirt,29.99,green,shirt,3.9,https://images.unsplash.com/photo-1576566588028-4147f3842f27
+6,Red Heels,Elegant red high heels,189.99,red,shoes,4.7,https://images.unsplash.com/photo-1543163521-1bf539c55dd2
+7,Pink Blouse,Light pink silk blouse,119.99,pink,top,4.4,https://images.unsplash.com/photo-1564257631407-4deb1f99d992
+8,Brown Leather Boots,Durable brown leather boots,249.99,brown,shoes,4.6,https://images.unsplash.com/photo-1542838687-307f8d662565
+9,Navy Blue Blazer,Professional navy blue blazer,199.99,blue,jacket,4.5,https://images.unsplash.com/photo-1594938298603-c8148c4dae35
+10,Red Cocktail Dress,Elegant red cocktail dress,179.99,red,dress,4.7,https://images.unsplash.com/photo-1562699729-c7f9a8f55064 
