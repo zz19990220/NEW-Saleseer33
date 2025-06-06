@@ -4,6 +4,11 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 import io
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Import custom modules
 from inventory.filters import load_inventory, filter_products, get_recommendation_reasons
@@ -33,124 +38,215 @@ if "search_results" not in st.session_state:
     st.session_state.search_results = None
 
 
+def create_synthetic_inventory():
+    """Create a synthetic inventory dataset when no file is available"""
+    logger.info("Creating synthetic inventory data")
+    
+    # Create synthetic products data
+    products_data = {
+        'id': list(range(1, 58)),  # 57 products
+        'name': [
+            'Silver Necklace', 'Gold Bracelet', 'Diamond Earrings', 
+            'Leather Handbag', 'Canvas Tote Bag', 'Designer Clutch',
+            'Navy Blazer', 'Striped Blazer', 'Velvet Blazer',
+            'Silk Blouse', 'Cotton Blouse', 'Linen Blouse',
+            'Wool Cardigan', 'Cotton Cardigan', 'Cashmere Cardigan',
+            'Trench Coat', 'Winter Coat', 'Rain Coat',
+            'Evening Dress', 'Summer Dress', 'Casual Dress', 'Red Cocktail Dress', 'Red Summer Dress',
+            'Cotton Hoodie', 'Zip-up Hoodie', 'Athletic Hoodie',
+            'Leather Jacket', 'Denim Jacket', 'Bomber Jacket',
+            'Wool Sweater', 'Cotton Sweater', 'Cashmere Sweater',
+            'Graphic T-shirt', 'Basic T-shirt', 'Long Sleeve T-shirt',
+            'Skinny Jeans', 'Bootcut Jeans', 'Mom Jeans', 'Boyfriend Jeans', 'Blue Jeans',
+            'Mini Skirt', 'Midi Skirt', 'Pleated Skirt', 'A-line Skirt',
+            'Running Shoes', 'Dress Shoes', 'Sandals', 'High Heels', 'Boots', 'Sneakers',
+            'White Sneakers', 'Red Heels', 'Brown Leather Boots', 'Casual Loafers',
+            'Athletic Socks', 'Wool Socks', 'No-Show Socks'
+        ],
+        'description': ['Quality ' + name for name in [
+            'Silver Necklace', 'Gold Bracelet', 'Diamond Earrings', 
+            'Leather Handbag', 'Canvas Tote Bag', 'Designer Clutch',
+            'Navy Blazer', 'Striped Blazer', 'Velvet Blazer',
+            'Silk Blouse', 'Cotton Blouse', 'Linen Blouse',
+            'Wool Cardigan', 'Cotton Cardigan', 'Cashmere Cardigan',
+            'Trench Coat', 'Winter Coat', 'Rain Coat',
+            'Evening Dress', 'Summer Dress', 'Casual Dress', 'Red Cocktail Dress', 'Red Summer Dress',
+            'Cotton Hoodie', 'Zip-up Hoodie', 'Athletic Hoodie',
+            'Leather Jacket', 'Denim Jacket', 'Bomber Jacket',
+            'Wool Sweater', 'Cotton Sweater', 'Cashmere Sweater',
+            'Graphic T-shirt', 'Basic T-shirt', 'Long Sleeve T-shirt',
+            'Skinny Jeans', 'Bootcut Jeans', 'Mom Jeans', 'Boyfriend Jeans', 'Blue Jeans',
+            'Mini Skirt', 'Midi Skirt', 'Pleated Skirt', 'A-line Skirt',
+            'Running Shoes', 'Dress Shoes', 'Sandals', 'High Heels', 'Boots', 'Sneakers',
+            'White Sneakers', 'Red Heels', 'Brown Leather Boots', 'Casual Loafers',
+            'Athletic Socks', 'Wool Socks', 'No-Show Socks'
+        ]],
+        'price': [
+            45.99, 89.99, 199.99, 
+            149.99, 39.99, 99.99,
+            129.99, 119.99, 159.99,
+            79.99, 49.99, 69.99,
+            89.99, 59.99, 149.99,
+            159.99, 199.99, 129.99,
+            189.99, 79.99, 59.99, 179.99, 149.99,
+            49.99, 59.99, 69.99,
+            199.99, 89.99, 99.99,
+            89.99, 49.99, 179.99,
+            29.99, 25.99, 34.99,
+            79.99, 69.99, 89.99, 74.99, 89.99,
+            49.99, 59.99, 69.99, 54.99,
+            89.99, 129.99, 49.99, 79.99, 139.99, 99.99,
+            79.99, 189.99, 249.99, 69.99,
+            12.99, 19.99, 9.99
+        ],
+        'color': [
+            'silver', 'gold', 'silver', 
+            'black', 'beige', 'red',
+            'blue', 'blue', 'black',
+            'white', 'blue', 'white',
+            'gray', 'green', 'beige',
+            'beige', 'black', 'blue',
+            'black', 'red', 'blue', 'red', 'red',
+            'black', 'gray', 'blue',
+            'brown', 'blue', 'black',
+            'gray', 'white', 'beige',
+            'black', 'white', 'gray',
+            'blue', 'blue', 'blue', 'blue', 'blue',
+            'black', 'blue', 'gray', 'red',
+            'white', 'black', 'brown', 'red', 'black', 'white',
+            'white', 'red', 'brown', 'brown',
+            'black', 'gray', 'white'
+        ],
+        'category': [
+            'accessory', 'accessory', 'accessory',
+            'bag', 'bag', 'bag',
+            'blazer', 'blazer', 'blazer',
+            'blouse', 'blouse', 'blouse',
+            'cardigan', 'cardigan', 'cardigan',
+            'coat', 'coat', 'coat',
+            'dress', 'dress', 'dress', 'dress', 'dress',
+            'hoodie', 'hoodie', 'hoodie',
+            'jacket', 'jacket', 'jacket',
+            'sweater', 'sweater', 'sweater',
+            'tshirt', 'tshirt', 'tshirt',
+            'jeans', 'jeans', 'jeans', 'jeans', 'jeans',
+            'skirt', 'skirt', 'skirt', 'skirt',
+            'shoes', 'shoes', 'shoes', 'shoes', 'shoes', 'shoes',
+            'shoes', 'shoes', 'shoes', 'shoes',
+            'accessory', 'accessory', 'accessory'
+        ],
+        'rating': [
+            4.2, 4.5, 4.8,
+            4.6, 4.2, 4.5,
+            4.3, 4.1, 4.7,
+            4.4, 4.0, 4.2,
+            4.4, 4.1, 4.8,
+            4.5, 4.7, 4.3,
+            4.8, 4.4, 4.2, 4.7, 4.5,
+            4.1, 4.3, 4.5,
+            4.6, 4.2, 4.4,
+            4.3, 4.1, 4.9,
+            4.0, 4.1, 4.2,
+            4.5, 4.3, 4.6, 4.4, 4.2,
+            4.2, 4.5, 4.3, 4.6,
+            4.7, 4.5, 4.2, 4.6, 4.8, 4.3,
+            4.3, 4.7, 4.6, 4.4,
+            3.9, 4.2, 4.0
+        ],
+        'image_url': [
+            'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f',  # necklace
+            'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f',  # bracelet
+            'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f',  # earrings
+            'https://images.unsplash.com/photo-1566150905458-1bf1fc113f0d',  # handbag
+            'https://images.unsplash.com/photo-1566150905458-1bf1fc113f0d',  # tote
+            'https://images.unsplash.com/photo-1566150905458-1bf1fc113f0d',  # clutch
+            'https://images.unsplash.com/photo-1594938298603-c8148c4dae35',  # blazer
+            'https://images.unsplash.com/photo-1594938298603-c8148c4dae35',  # blazer
+            'https://images.unsplash.com/photo-1594938298603-c8148c4dae35',  # blazer
+            'https://images.unsplash.com/photo-1564257631407-4deb1f99d992',  # blouse
+            'https://images.unsplash.com/photo-1564257631407-4deb1f99d992',  # blouse
+            'https://images.unsplash.com/photo-1564257631407-4deb1f99d992',  # blouse
+            'https://images.unsplash.com/photo-1616677307286-b79e6b4a0983',  # cardigan
+            'https://images.unsplash.com/photo-1616677307286-b79e6b4a0983',  # cardigan
+            'https://images.unsplash.com/photo-1616677307286-b79e6b4a0983',  # cardigan
+            'https://images.unsplash.com/photo-1551028719-00167b16eac5',  # coat
+            'https://images.unsplash.com/photo-1551028719-00167b16eac5',  # coat
+            'https://images.unsplash.com/photo-1551028719-00167b16eac5',  # coat
+            'https://images.unsplash.com/photo-1572804013309-59a88b7e92f1',  # dress
+            'https://images.unsplash.com/photo-1572804013309-59a88b7e92f1',  # dress
+            'https://images.unsplash.com/photo-1572804013309-59a88b7e92f1',  # dress
+            'https://images.unsplash.com/photo-1562699729-c7f9a8f55064',  # dress
+            'https://images.unsplash.com/photo-1572804013309-59a88b7e92f1',  # dress
+            'https://images.unsplash.com/photo-1620799140188-3b2a02fd9a77',  # hoodie
+            'https://images.unsplash.com/photo-1620799140188-3b2a02fd9a77',  # hoodie
+            'https://images.unsplash.com/photo-1620799140188-3b2a02fd9a77',  # hoodie
+            'https://images.unsplash.com/photo-1551028719-00167b16eac5',  # jacket
+            'https://images.unsplash.com/photo-1551028719-00167b16eac5',  # jacket
+            'https://images.unsplash.com/photo-1551028719-00167b16eac5',  # jacket
+            'https://images.unsplash.com/photo-1616677307286-b79e6b4a0983',  # sweater
+            'https://images.unsplash.com/photo-1616677307286-b79e6b4a0983',  # sweater
+            'https://images.unsplash.com/photo-1616677307286-b79e6b4a0983',  # sweater
+            'https://images.unsplash.com/photo-1576566588028-4147f3842f27',  # tshirt
+            'https://images.unsplash.com/photo-1576566588028-4147f3842f27',  # tshirt
+            'https://images.unsplash.com/photo-1576566588028-4147f3842f27',  # tshirt
+            'https://images.unsplash.com/photo-1541099649105-f69ad21f3246',  # jeans
+            'https://images.unsplash.com/photo-1541099649105-f69ad21f3246',  # jeans
+            'https://images.unsplash.com/photo-1541099649105-f69ad21f3246',  # jeans
+            'https://images.unsplash.com/photo-1541099649105-f69ad21f3246',  # jeans
+            'https://images.unsplash.com/photo-1541099649105-f69ad21f3246',  # jeans
+            'https://images.unsplash.com/photo-1583496661160-fb5886a0aaaa',  # skirt
+            'https://images.unsplash.com/photo-1583496661160-fb5886a0aaaa',  # skirt
+            'https://images.unsplash.com/photo-1583496661160-fb5886a0aaaa',  # skirt
+            'https://images.unsplash.com/photo-1583496661160-fb5886a0aaaa',  # skirt
+            'https://images.unsplash.com/photo-1607522370275-f14206abe5d3',  # shoes
+            'https://images.unsplash.com/photo-1607522370275-f14206abe5d3',  # shoes
+            'https://images.unsplash.com/photo-1607522370275-f14206abe5d3',  # shoes
+            'https://images.unsplash.com/photo-1543163521-1bf539c55dd2',  # shoes
+            'https://images.unsplash.com/photo-1542838687-307f8d662565',  # shoes
+            'https://images.unsplash.com/photo-1607522370275-f14206abe5d3',  # shoes
+            'https://images.unsplash.com/photo-1607522370275-f14206abe5d3',  # shoes
+            'https://images.unsplash.com/photo-1543163521-1bf539c55dd2',  # shoes
+            'https://images.unsplash.com/photo-1542838687-307f8d662565',  # shoes
+            'https://images.unsplash.com/photo-1607522370275-f14206abe5d3',  # shoes
+            'https://images.unsplash.com/photo-1586350977771-2a1dc0c8ee2d',  # socks
+            'https://images.unsplash.com/photo-1586350977771-2a1dc0c8ee2d',  # socks
+            'https://images.unsplash.com/photo-1586350977771-2a1dc0c8ee2d'   # socks
+        ],
+    }
+    
+    return pd.DataFrame(products_data)
+
+
 def load_default_inventory():
     """Load the built-in product inventory"""
     try:
+        logger.info("Attempting to load inventory data")
         sample_path = "inventory/products.csv"
+        
         if os.path.exists(sample_path):
+            logger.info(f"Found inventory file: {sample_path}")
             df = load_inventory(sample_path)
             
-            # Supplement with more demo data if needed
+            # If the loaded data is too small, supplement with synthetic data
             if len(df) < 30:
-                # Add more products with different categories for a richer demo experience
-                additional_data = {
-                    'id': list(range(len(df) + 1, len(df) + 48)),
-                    'name': [
-                        'Silver Necklace', 'Gold Bracelet', 'Diamond Earrings', 
-                        'Leather Handbag', 'Canvas Tote Bag', 'Designer Clutch',
-                        'Navy Blazer', 'Striped Blazer', 'Velvet Blazer',
-                        'Silk Blouse', 'Cotton Blouse', 'Linen Blouse',
-                        'Wool Cardigan', 'Cotton Cardigan', 'Cashmere Cardigan',
-                        'Trench Coat', 'Winter Coat', 'Rain Coat',
-                        'Evening Dress', 'Summer Dress', 'Casual Dress',
-                        'Cotton Hoodie', 'Zip-up Hoodie', 'Athletic Hoodie',
-                        'Leather Jacket', 'Denim Jacket', 'Bomber Jacket',
-                        'Wool Sweater', 'Cotton Sweater', 'Cashmere Sweater',
-                        'Graphic T-shirt', 'Basic T-shirt', 'Long Sleeve T-shirt',
-                        'Skinny Jeans', 'Bootcut Jeans', 'Mom Jeans', 'Boyfriend Jeans',
-                        'Mini Skirt', 'Midi Skirt', 'Pleated Skirt', 'A-line Skirt',
-                        'Running Shoes', 'Dress Shoes', 'Sandals', 'High Heels', 'Boots', 'Sneakers'
-                    ],
-                    'description': ['Quality ' + name for name in [
-                        'Silver Necklace', 'Gold Bracelet', 'Diamond Earrings', 
-                        'Leather Handbag', 'Canvas Tote Bag', 'Designer Clutch',
-                        'Navy Blazer', 'Striped Blazer', 'Velvet Blazer',
-                        'Silk Blouse', 'Cotton Blouse', 'Linen Blouse',
-                        'Wool Cardigan', 'Cotton Cardigan', 'Cashmere Cardigan',
-                        'Trench Coat', 'Winter Coat', 'Rain Coat',
-                        'Evening Dress', 'Summer Dress', 'Casual Dress',
-                        'Cotton Hoodie', 'Zip-up Hoodie', 'Athletic Hoodie',
-                        'Leather Jacket', 'Denim Jacket', 'Bomber Jacket',
-                        'Wool Sweater', 'Cotton Sweater', 'Cashmere Sweater',
-                        'Graphic T-shirt', 'Basic T-shirt', 'Long Sleeve T-shirt',
-                        'Skinny Jeans', 'Bootcut Jeans', 'Mom Jeans', 'Boyfriend Jeans',
-                        'Mini Skirt', 'Midi Skirt', 'Pleated Skirt', 'A-line Skirt',
-                        'Running Shoes', 'Dress Shoes', 'Sandals', 'High Heels', 'Boots', 'Sneakers'
-                    ]],
-                    'price': [
-                        45.99, 89.99, 199.99, 
-                        149.99, 39.99, 99.99,
-                        129.99, 119.99, 159.99,
-                        79.99, 49.99, 69.99,
-                        89.99, 59.99, 149.99,
-                        159.99, 199.99, 129.99,
-                        189.99, 79.99, 59.99,
-                        49.99, 59.99, 69.99,
-                        199.99, 89.99, 99.99,
-                        89.99, 49.99, 179.99,
-                        29.99, 25.99, 34.99,
-                        79.99, 69.99, 89.99, 74.99,
-                        49.99, 59.99, 69.99, 54.99,
-                        89.99, 129.99, 49.99, 79.99, 139.99, 99.99
-                    ],
-                    'color': [
-                        'silver', 'gold', 'silver', 
-                        'black', 'beige', 'red',
-                        'blue', 'blue', 'black',
-                        'white', 'blue', 'white',
-                        'gray', 'green', 'beige',
-                        'beige', 'black', 'blue',
-                        'black', 'red', 'blue',
-                        'black', 'gray', 'blue',
-                        'brown', 'blue', 'black',
-                        'gray', 'white', 'beige',
-                        'black', 'white', 'gray',
-                        'blue', 'blue', 'blue', 'blue',
-                        'black', 'blue', 'gray', 'red',
-                        'white', 'black', 'brown', 'red', 'black', 'white'
-                    ],
-                    'category': [
-                        'accessory', 'accessory', 'accessory',
-                        'bag', 'bag', 'bag',
-                        'blazer', 'blazer', 'blazer',
-                        'blouse', 'blouse', 'blouse',
-                        'cardigan', 'cardigan', 'cardigan',
-                        'coat', 'coat', 'coat',
-                        'dress', 'dress', 'dress',
-                        'hoodie', 'hoodie', 'hoodie',
-                        'jacket', 'jacket', 'jacket',
-                        'sweater', 'sweater', 'sweater',
-                        'tshirt', 'tshirt', 'tshirt',
-                        'jeans', 'jeans', 'jeans', 'jeans',
-                        'skirt', 'skirt', 'skirt', 'skirt',
-                        'shoes', 'shoes', 'shoes', 'shoes', 'shoes', 'shoes'
-                    ],
-                    'rating': [
-                        4.2, 4.5, 4.8,
-                        4.6, 4.2, 4.5,
-                        4.3, 4.1, 4.7,
-                        4.4, 4.0, 4.2,
-                        4.4, 4.1, 4.8,
-                        4.5, 4.7, 4.3,
-                        4.8, 4.4, 4.2,
-                        4.1, 4.3, 4.5,
-                        4.6, 4.2, 4.4,
-                        4.3, 4.1, 4.9,
-                        4.0, 4.1, 4.2,
-                        4.5, 4.3, 4.6, 4.4,
-                        4.2, 4.5, 4.3, 4.6,
-                        4.7, 4.5, 4.2, 4.6, 4.8, 4.3
-                    ],
-                    'image_url': ['https://images.unsplash.com/photo-1551298118-6c4d1a86e257'] * 47
-                }
-                additional_df = pd.DataFrame(additional_data)
-                df = pd.concat([df, additional_df], ignore_index=True)
+                logger.info("Sample data too small, supplementing with synthetic data")
+                synthetic_df = create_synthetic_inventory()
+                df = pd.concat([df, synthetic_df], ignore_index=True)
+                df = df.drop_duplicates(subset=['name', 'category', 'color'], keep='first')
             
+            logger.info(f"Successfully loaded inventory with {len(df)} products")
             return df
+        else:
+            # If no file exists, create synthetic data
+            logger.warning(f"Inventory file not found: {sample_path}")
+            logger.info("Creating synthetic inventory as fallback")
+            return create_synthetic_inventory()
+            
     except Exception as e:
-        st.error(f"Error loading inventory: {e}")
-    
-    return None
+        logger.error(f"Error loading inventory: {e}")
+        logger.info("Falling back to synthetic inventory data")
+        # Always provide data even if there's an error
+        return create_synthetic_inventory()
 
 
 def show_inventory_overview():
@@ -187,11 +283,18 @@ def show_inventory_overview():
 
 def process_search_query(query):
     """Process the search query and return filtered results"""
-    if st.session_state.inventory_df is None:
-        st.error("Inventory data not loaded. Please try again.")
-        return None
-    
     try:
+        # Ensure inventory is loaded
+        if st.session_state.inventory_df is None:
+            logger.warning("Inventory data not loaded when attempting search")
+            # Try to load default inventory as a fallback
+            st.session_state.inventory_df = load_default_inventory()
+            
+            # If still None, show error and return
+            if st.session_state.inventory_df is None:
+                st.error("Inventory data not loaded. Please try again.")
+                return None
+        
         # Parse query using LLM
         filters = parse_query(query)
         
@@ -228,6 +331,7 @@ def process_search_query(query):
         return product_cards
     
     except Exception as e:
+        logger.exception(f"Error processing search query: {e}")
         st.error(f"Error processing your search: {e}")
         return None
 
@@ -261,6 +365,11 @@ def main():
     # Load inventory if not already loaded
     if st.session_state.inventory_df is None:
         st.session_state.inventory_df = load_default_inventory()
+        # Log inventory loading status
+        if st.session_state.inventory_df is not None:
+            logger.info(f"Loaded inventory with {len(st.session_state.inventory_df)} products")
+        else:
+            logger.error("Failed to load inventory")
     
     # Show inventory overview in sidebar
     show_inventory_overview()
