@@ -5,6 +5,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 import io
 import logging
+import re
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -36,6 +37,12 @@ if "inventory_df" not in st.session_state:
 
 if "search_results" not in st.session_state:
     st.session_state.search_results = None
+
+if "search_query" not in st.session_state:
+    st.session_state.search_query = None
+
+if "search_summary" not in st.session_state:
+    st.session_state.search_summary = None
 
 
 def create_synthetic_inventory():
@@ -281,6 +288,53 @@ def show_inventory_overview():
                 st.sidebar.markdown(f"• {cat.title()}")
 
 
+def handle_simple_search(query):
+    """
+    Handle simple keyword searches by inferring filters from basic terms
+    Returns a dictionary with inferred filters
+    """
+    query = query.strip().lower()
+    
+    # Check if the query is just a single category name
+    categories = ['accessory', 'bag', 'blazer', 'blouse', 'cardigan', 'coat', 
+                  'dress', 'hoodie', 'jacket', 'jeans', 'shoes', 'skirt', 
+                  'sweater', 'tshirt', 'socks']
+    
+    # Handle plural forms by removing trailing 's'
+    search_term = query.rstrip('s')
+    
+    # Check for exact category match
+    if search_term in categories:
+        logger.info(f"Simple search matched category: {search_term}")
+        return {"category": search_term}
+    
+    # Check for partial category match
+    for category in categories:
+        if search_term in category or category in search_term:
+            logger.info(f"Simple search partially matched category: {category}")
+            return {"category": category}
+    
+    # Check for color matches
+    colors = ['red', 'blue', 'green', 'black', 'white', 'pink', 
+              'purple', 'yellow', 'orange', 'brown', 'gray', 'beige']
+    
+    for color in colors:
+        if color in query:
+            logger.info(f"Simple search matched color: {color}")
+            return {"color": color}
+    
+    # Try to extract price information
+    price_pattern = r'under\s*\$?(\d+)'
+    match = re.search(price_pattern, query)
+    if match:
+        price = float(match.group(1))
+        logger.info(f"Simple search matched price under: ${price}")
+        return {"price_max": price}
+    
+    # If nothing matches, return None to indicate the basic search failed
+    return None
+
+
 def process_search_query(query):
     """Process the search query and return filtered results"""
     try:
@@ -295,12 +349,21 @@ def process_search_query(query):
                 st.error("Inventory data not loaded. Please try again.")
                 return None
         
-        # Parse query using LLM
-        filters = parse_query(query)
+        # First try to handle as a simple keyword search
+        simple_filters = handle_simple_search(query)
         
-        if not filters:
-            st.warning("I couldn't understand your request. Please try specifying product type, color, or price range more clearly.")
-            return None
+        # If simple search returned filters, use those
+        if simple_filters:
+            filters = simple_filters
+            st.session_state.search_summary = f"Searching for: Category: {filters.get('category', '')}{filters.get('color', '')}"
+            logger.info(f"Using simple search filters: {filters}")
+        else:
+            # Otherwise try the LLM for natural language understanding
+            filters = parse_query(query)
+            
+            if not filters:
+                st.warning("I couldn't understand your request. Please try specifying product type, color, or price range more clearly.")
+                return None
         
         st.session_state.last_filters = filters
         
@@ -308,8 +371,11 @@ def process_search_query(query):
         filtered_df = filter_products(st.session_state.inventory_df, filters)
         
         if len(filtered_df) == 0:
-            st.warning(f"No products found matching your criteria: {filters}")
+            st.warning(f"No products found matching your criteria.")
             return None
+        
+        # Create search summary for display
+        create_search_insight(filtered_df, filters)
         
         # Generate product cards for display
         product_cards = []
@@ -334,6 +400,42 @@ def process_search_query(query):
         logger.exception(f"Error processing search query: {e}")
         st.error(f"Error processing your search: {e}")
         return None
+
+
+def create_search_insight(filtered_df, filters):
+    """Create search insight summary based on filtered results"""
+    if filtered_df is None or len(filtered_df) == 0:
+        return
+    
+    # Get the key filter used for search
+    primary_filter = ""
+    if 'category' in filters and filters['category']:
+        primary_filter = f"in {filters['category']}s."
+    elif 'color' in filters and filters['color']:
+        primary_filter = f"in {filters['color']} color."
+    
+    # Get price range of found items
+    min_price = filtered_df['price'].min()
+    max_price = filtered_df['price'].max()
+    price_range = f"Price range: ${min_price:.2f} - ${max_price:.2f}."
+    
+    # Check ratings
+    avg_rating = filtered_df['rating'].mean()
+    rating_text = ""
+    if avg_rating >= 4.5:
+        rating_text = "All items have excellent ratings."
+    elif avg_rating >= 4.0:
+        rating_text = "Items have very good ratings."
+    else:
+        rating_text = f"Average rating: {avg_rating:.1f}."
+    
+    # Generate the complete insight
+    st.session_state.search_summary = {
+        "count": len(filtered_df),
+        "primary_filter": primary_filter,
+        "rating_text": rating_text,
+        "price_range": price_range
+    }
 
 
 def display_search_results(products):
@@ -388,7 +490,8 @@ def main():
     with col1:
         search_query = st.text_input(
             "What are you looking for?", 
-            placeholder="e.g., Show me red dresses under $200"
+            placeholder="e.g., Show me red dresses under $200",
+            key="search_input"
         )
     
     with col2:
@@ -397,6 +500,7 @@ def main():
     # Process search when button clicked
     if search_button and search_query:
         with st.spinner("Searching products..."):
+            st.session_state.search_query = search_query
             results = process_search_query(search_query)
             if results:
                 st.session_state.search_results = results
@@ -407,9 +511,43 @@ def main():
                     "results_count": len(results)
                 })
     
+    # Display search summary if available
+    if st.session_state.search_query:
+        if isinstance(st.session_state.search_summary, str):
+            # If it's a simple string search summary
+            st.info(f"🎯 {st.session_state.search_summary}")
+        elif isinstance(st.session_state.search_summary, dict):
+            # If it's a detailed search insight
+            with st.container():
+                st.markdown("""
+                <style>
+                .search-insight {
+                    background-color: #e8f4f9;
+                    border-left: 5px solid #4e8cff;
+                    padding: 15px;
+                    border-radius: 5px;
+                    margin: 10px 0;
+                }
+                </style>
+                """, unsafe_allow_html=True)
+                
+                insight = st.session_state.search_summary
+                st.markdown(f"""
+                <div class="search-insight">
+                <h4>🎯 Searching for: {st.session_state.last_filters}</h4>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                st.markdown(f"""
+                <div class="search-insight">
+                <h4>💡 Recommendation Insight:</h4>
+                <p>Found {insight["count"]} items {insight["primary_filter"]} {insight["rating_text"]} {insight["price_range"]}</p>
+                </div>
+                """, unsafe_allow_html=True)
+    
     # Display search results
     if st.session_state.search_results:
-        st.markdown(f"### Found {len(st.session_state.search_results)} matching products")
+        st.markdown(f"## 🎯 Found {len(st.session_state.search_results)} Products")
         display_search_results(st.session_state.search_results)
 
 
