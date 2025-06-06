@@ -228,6 +228,17 @@ def load_default_inventory():
     """Load the built-in product inventory"""
     try:
         logger.info("Attempting to load inventory data")
+        
+        # Try the sample data file first
+        sample_path = "../inventory/sample_data/sample_products.csv"
+        
+        if os.path.exists(sample_path):
+            logger.info(f"Found inventory file: {sample_path}")
+            df = load_inventory(sample_path)
+            logger.info(f"Successfully loaded inventory with {len(df)} products")
+            return df
+        
+        # Fallback to the original path
         sample_path = "inventory/products.csv"
         
         if os.path.exists(sample_path):
