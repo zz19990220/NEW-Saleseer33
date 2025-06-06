@@ -3,7 +3,6 @@ import pandas as pd
 import os
 from pathlib import Path
 from dotenv import load_dotenv
-import time
 import io
 
 # Import custom modules
@@ -15,14 +14,14 @@ load_dotenv()
 
 # Set page config
 st.set_page_config(
-    page_title="AI Product Recommender",
+    page_title="Saleseer AI Product Recommendations",
     page_icon="🛍️",
     layout="wide"
 )
 
 # Initialize session state
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
+if "search_history" not in st.session_state:
+    st.session_state.search_history = []
 
 if "last_filters" not in st.session_state:
     st.session_state.last_filters = {}
@@ -30,237 +29,279 @@ if "last_filters" not in st.session_state:
 if "inventory_df" not in st.session_state:
     st.session_state.inventory_df = None
 
-if "using_sample_data" not in st.session_state:
-    st.session_state.using_sample_data = False
+if "search_results" not in st.session_state:
+    st.session_state.search_results = None
 
 
-def main():
-    # Header
-    st.title("🛍️ AI Product Recommender")
-    st.markdown("### Find products with natural language")
-    
-    # Sidebar
-    with st.sidebar:
-        st.header("About")
-        st.markdown("""
-        This app uses AI to understand your product needs and recommend items from our inventory.
-        
-        Try queries like:
-        - "Show me red dresses under $200"
-        - "I need comfortable shoes"
-        - "Find blue jackets with good ratings"
-        """)
-        
-        # Data source selection
-        st.subheader("Data Source")
-        
-        # File uploader for custom inventory
-        uploaded_file = st.file_uploader("Upload your inventory (CSV or Excel)", type=['csv', 'xlsx'])
-        
-        # Handle file upload
-        if uploaded_file is not None:
-            try:
-                # Get file extension
-                file_ext = Path(uploaded_file.name).suffix.lower()
-                
-                if file_ext == '.csv':
-                    st.session_state.inventory_df = pd.read_csv(uploaded_file)
-                elif file_ext in ['.xlsx', '.xls']:
-                    st.session_state.inventory_df = pd.read_excel(uploaded_file)
-                
-                st.session_state.using_sample_data = False
-                st.success(f"✅ Inventory uploaded: {uploaded_file.name}")
-            except Exception as e:
-                st.error(f"❌ Error loading file: {e}")
-                st.session_state.inventory_df = None
-        
-        # Option to use sample data
-        if st.button("Use Sample Inventory Data") or (st.session_state.inventory_df is None and not st.session_state.using_sample_data):
-            try:
-                sample_path = "inventory/products.csv"
-                if os.path.exists(sample_path):
-                    st.session_state.inventory_df = load_inventory(sample_path)
-                    st.session_state.using_sample_data = True
-                    st.success(f"✅ Using sample inventory ({len(st.session_state.inventory_df)} products)")
-                else:
-                    st.warning("⚠️ Sample inventory file not found. Please upload a file.")
-                    st.session_state.inventory_df = None
-            except Exception as e:
-                st.error(f"❌ Error loading sample inventory: {e}")
-                st.session_state.inventory_df = None
-        
-        # Display inventory stats if available
-        if st.session_state.inventory_df is not None:
-            df = st.session_state.inventory_df
-            st.markdown("#### Inventory Statistics")
-            st.write(f"**Total Products:** {len(df)}")
+def load_default_inventory():
+    """Load the built-in product inventory"""
+    try:
+        sample_path = "inventory/products.csv"
+        if os.path.exists(sample_path):
+            df = load_inventory(sample_path)
             
-            if 'category' in df.columns:
-                categories = df['category'].unique()
-                st.write(f"**Categories:** {', '.join(categories[:5])}" + ("..." if len(categories) > 5 else ""))
+            # Supplement with more demo data if needed
+            if len(df) < 30:
+                # Add more products with different categories for a richer demo experience
+                additional_data = {
+                    'id': list(range(len(df) + 1, len(df) + 48)),
+                    'name': [
+                        'Silver Necklace', 'Gold Bracelet', 'Diamond Earrings', 
+                        'Leather Handbag', 'Canvas Tote Bag', 'Designer Clutch',
+                        'Navy Blazer', 'Striped Blazer', 'Velvet Blazer',
+                        'Silk Blouse', 'Cotton Blouse', 'Linen Blouse',
+                        'Wool Cardigan', 'Cotton Cardigan', 'Cashmere Cardigan',
+                        'Trench Coat', 'Winter Coat', 'Rain Coat',
+                        'Evening Dress', 'Summer Dress', 'Casual Dress',
+                        'Cotton Hoodie', 'Zip-up Hoodie', 'Athletic Hoodie',
+                        'Leather Jacket', 'Denim Jacket', 'Bomber Jacket',
+                        'Wool Sweater', 'Cotton Sweater', 'Cashmere Sweater',
+                        'Graphic T-shirt', 'Basic T-shirt', 'Long Sleeve T-shirt',
+                        'Skinny Jeans', 'Bootcut Jeans', 'Mom Jeans', 'Boyfriend Jeans',
+                        'Mini Skirt', 'Midi Skirt', 'Pleated Skirt', 'A-line Skirt',
+                        'Running Shoes', 'Dress Shoes', 'Sandals', 'High Heels', 'Boots', 'Sneakers'
+                    ],
+                    'description': ['Quality ' + name for name in [
+                        'Silver Necklace', 'Gold Bracelet', 'Diamond Earrings', 
+                        'Leather Handbag', 'Canvas Tote Bag', 'Designer Clutch',
+                        'Navy Blazer', 'Striped Blazer', 'Velvet Blazer',
+                        'Silk Blouse', 'Cotton Blouse', 'Linen Blouse',
+                        'Wool Cardigan', 'Cotton Cardigan', 'Cashmere Cardigan',
+                        'Trench Coat', 'Winter Coat', 'Rain Coat',
+                        'Evening Dress', 'Summer Dress', 'Casual Dress',
+                        'Cotton Hoodie', 'Zip-up Hoodie', 'Athletic Hoodie',
+                        'Leather Jacket', 'Denim Jacket', 'Bomber Jacket',
+                        'Wool Sweater', 'Cotton Sweater', 'Cashmere Sweater',
+                        'Graphic T-shirt', 'Basic T-shirt', 'Long Sleeve T-shirt',
+                        'Skinny Jeans', 'Bootcut Jeans', 'Mom Jeans', 'Boyfriend Jeans',
+                        'Mini Skirt', 'Midi Skirt', 'Pleated Skirt', 'A-line Skirt',
+                        'Running Shoes', 'Dress Shoes', 'Sandals', 'High Heels', 'Boots', 'Sneakers'
+                    ]],
+                    'price': [
+                        45.99, 89.99, 199.99, 
+                        149.99, 39.99, 99.99,
+                        129.99, 119.99, 159.99,
+                        79.99, 49.99, 69.99,
+                        89.99, 59.99, 149.99,
+                        159.99, 199.99, 129.99,
+                        189.99, 79.99, 59.99,
+                        49.99, 59.99, 69.99,
+                        199.99, 89.99, 99.99,
+                        89.99, 49.99, 179.99,
+                        29.99, 25.99, 34.99,
+                        79.99, 69.99, 89.99, 74.99,
+                        49.99, 59.99, 69.99, 54.99,
+                        89.99, 129.99, 49.99, 79.99, 139.99, 99.99
+                    ],
+                    'color': [
+                        'silver', 'gold', 'silver', 
+                        'black', 'beige', 'red',
+                        'blue', 'blue', 'black',
+                        'white', 'blue', 'white',
+                        'gray', 'green', 'beige',
+                        'beige', 'black', 'blue',
+                        'black', 'red', 'blue',
+                        'black', 'gray', 'blue',
+                        'brown', 'blue', 'black',
+                        'gray', 'white', 'beige',
+                        'black', 'white', 'gray',
+                        'blue', 'blue', 'blue', 'blue',
+                        'black', 'blue', 'gray', 'red',
+                        'white', 'black', 'brown', 'red', 'black', 'white'
+                    ],
+                    'category': [
+                        'accessory', 'accessory', 'accessory',
+                        'bag', 'bag', 'bag',
+                        'blazer', 'blazer', 'blazer',
+                        'blouse', 'blouse', 'blouse',
+                        'cardigan', 'cardigan', 'cardigan',
+                        'coat', 'coat', 'coat',
+                        'dress', 'dress', 'dress',
+                        'hoodie', 'hoodie', 'hoodie',
+                        'jacket', 'jacket', 'jacket',
+                        'sweater', 'sweater', 'sweater',
+                        'tshirt', 'tshirt', 'tshirt',
+                        'jeans', 'jeans', 'jeans', 'jeans',
+                        'skirt', 'skirt', 'skirt', 'skirt',
+                        'shoes', 'shoes', 'shoes', 'shoes', 'shoes', 'shoes'
+                    ],
+                    'rating': [
+                        4.2, 4.5, 4.8,
+                        4.6, 4.2, 4.5,
+                        4.3, 4.1, 4.7,
+                        4.4, 4.0, 4.2,
+                        4.4, 4.1, 4.8,
+                        4.5, 4.7, 4.3,
+                        4.8, 4.4, 4.2,
+                        4.1, 4.3, 4.5,
+                        4.6, 4.2, 4.4,
+                        4.3, 4.1, 4.9,
+                        4.0, 4.1, 4.2,
+                        4.5, 4.3, 4.6, 4.4,
+                        4.2, 4.5, 4.3, 4.6,
+                        4.7, 4.5, 4.2, 4.6, 4.8, 4.3
+                    ],
+                    'image_url': ['https://images.unsplash.com/photo-1551298118-6c4d1a86e257'] * 47
+                }
+                additional_df = pd.DataFrame(additional_data)
+                df = pd.concat([df, additional_df], ignore_index=True)
             
-            if 'color' in df.columns:
-                colors = df['color'].unique()
-                st.write(f"**Colors:** {', '.join(colors[:5])}" + ("..." if len(colors) > 5 else ""))
-            
-            if 'price' in df.columns:
-                st.write(f"**Price range:** ${df['price'].min():.2f} - ${df['price'].max():.2f}")
+            return df
+    except Exception as e:
+        st.error(f"Error loading inventory: {e}")
     
-    # Display chat history
-    display_chat_history()
-    
-    # Show a placeholder message if no inventory is loaded
+    return None
+
+
+def show_inventory_overview():
+    """Display inventory statistics in the sidebar"""
+    if st.session_state.inventory_df is not None:
+        df = st.session_state.inventory_df
+        
+        st.sidebar.markdown("# 📊 Inventory Overview")
+        
+        # Total Products
+        st.sidebar.markdown("### Total Products")
+        st.sidebar.markdown(f"## {len(df)}")
+        
+        # Average Rating
+        if 'rating' in df.columns:
+            avg_rating = df['rating'].mean()
+            st.sidebar.markdown("### Average Rating")
+            st.sidebar.markdown(f"## {avg_rating:.1f}/5")
+        
+        # Price Range
+        if 'price' in df.columns:
+            min_price = df['price'].min()
+            max_price = df['price'].max()
+            st.sidebar.markdown("### Price Range")
+            st.sidebar.markdown(f"## ${min_price:.0f} - ${max_price:.0f}")
+        
+        # Available Categories
+        if 'category' in df.columns:
+            categories = sorted(df['category'].unique())
+            st.sidebar.markdown("### Available Categories")
+            for cat in categories:
+                st.sidebar.markdown(f"• {cat.title()}")
+
+
+def process_search_query(query):
+    """Process the search query and return filtered results"""
     if st.session_state.inventory_df is None:
-        st.info("Please upload an inventory file or use the sample inventory to get started.")
+        st.error("Inventory data not loaded. Please try again.")
+        return None
     
-    # Chat input
-    user_query = st.chat_input("What kind of product are you looking for?", disabled=st.session_state.inventory_df is None)
-    
-    # Process query when submitted
-    if user_query and st.session_state.inventory_df is not None:
-        process_query(user_query, st.session_state.inventory_df)
-
-
-def process_query(user_query, df):
-    # Add user message to chat history
-    st.session_state.chat_history.append({"role": "user", "content": user_query})
-    
-    # Processing message
-    with st.chat_message("assistant"):
-        with st.status("Processing your request...", expanded=True) as status:
-            try:
-                st.write("Analyzing your query...")
-                
-                # Parse query using LLM
-                filters = parse_query(user_query)
-                st.session_state.last_filters = filters
-                
-                if not filters:
-                    status.update(label="⚠️ Couldn't parse your query. Please try again.", state="error")
-                    st.session_state.chat_history.append({
-                        "role": "assistant", 
-                        "content": "I couldn't understand your request. Please try specifying product type, color, or price range more clearly."
-                    })
-                    return
-                
-                st.write(f"✅ Query understood: {filters}")
-                status.update(label="Finding matching products...", state="running")
-                
-                # Filter products
-                filtered_df = filter_products(df, filters)
-                st.write(f"Found {len(filtered_df)} matching products")
-                
-                if len(filtered_df) == 0:
-                    status.update(label="No matching products found", state="complete")
-                    st.session_state.chat_history.append({
-                        "role": "assistant", 
-                        "content": f"I couldn't find any products matching your criteria: {filters}. Please try a different query."
-                    })
-                    return
-                
-                status.update(label="Generating recommendations...", state="running")
-                
-                # Generate product card display
-                product_cards = generate_product_cards(filtered_df, filters)
-                
-                # Add recommendations to chat history
-                filter_summary = get_filter_summary(filters)
-                recommendation_message = f"Here are {len(filtered_df)} products {filter_summary}:"
-                st.session_state.chat_history.append({
-                    "role": "assistant", 
-                    "content": recommendation_message,
-                    "products": product_cards
-                })
-                
-                status.update(label="✅ Recommendations ready!", state="complete")
-            
-            except Exception as e:
-                status.update(label=f"❌ Error: {str(e)}", state="error")
-                st.session_state.chat_history.append({
-                    "role": "assistant", 
-                    "content": f"Sorry, I encountered an error: {str(e)}"
-                })
-
-
-def get_filter_summary(filters):
-    """Generate a human-readable summary of the filters"""
-    parts = []
-    
-    if 'category' in filters and filters['category']:
-        parts.append(f"in the {filters['category']} category")
-    
-    if 'color' in filters and filters['color']:
-        parts.append(f"in {filters['color']} color")
-    
-    if 'price_max' in filters and filters['price_max']:
-        parts.append(f"under ${filters['price_max']}")
-    
-    if 'price_min' in filters and filters['price_min']:
-        parts.append(f"over ${filters['price_min']}")
-    
-    if 'min_rating' in filters and filters['min_rating']:
-        parts.append(f"with at least {filters['min_rating']} stars")
-    
-    if parts:
-        return " ".join(parts)
-    return ""
-
-
-def generate_product_cards(df, filters):
-    """Convert DataFrame rows to list of product cards"""
-    product_cards = []
-    
-    for _, row in df.iterrows():
-        product = row.to_dict()
-        reason = get_recommendation_reasons(product, filters)
+    try:
+        # Parse query using LLM
+        filters = parse_query(query)
         
-        product_cards.append({
-            "id": product['id'] if 'id' in product else 0,
-            "name": product['name'],
-            "price": product['price'],
-            "image_url": product.get('image_url', ''),
-            "reason": reason,
-            "color": product.get('color', 'N/A'),
-            "category": product.get('category', 'N/A'),
-            "rating": product.get('rating', 0)
-        })
-    
-    return product_cards
-
-
-def display_chat_history():
-    """Display all messages in the chat history"""
-    for message in st.session_state.chat_history:
-        with st.chat_message(message["role"]):
-            st.write(message["content"])
+        if not filters:
+            st.warning("I couldn't understand your request. Please try specifying product type, color, or price range more clearly.")
+            return None
+        
+        st.session_state.last_filters = filters
+        
+        # Filter products
+        filtered_df = filter_products(st.session_state.inventory_df, filters)
+        
+        if len(filtered_df) == 0:
+            st.warning(f"No products found matching your criteria: {filters}")
+            return None
+        
+        # Generate product cards for display
+        product_cards = []
+        for _, row in filtered_df.iterrows():
+            product = row.to_dict()
+            reason = get_recommendation_reasons(product, filters)
             
-            # If the message contains product recommendations, display them
-            if message["role"] == "assistant" and "products" in message:
-                display_product_recommendations(message["products"])
+            product_cards.append({
+                "id": product.get('id', 0),
+                "name": product.get('name', 'Unknown Product'),
+                "price": product.get('price', 0),
+                "image_url": product.get('image_url', ''),
+                "reason": reason,
+                "color": product.get('color', 'N/A'),
+                "category": product.get('category', 'N/A'),
+                "rating": product.get('rating', 0)
+            })
+        
+        return product_cards
+    
+    except Exception as e:
+        st.error(f"Error processing your search: {e}")
+        return None
 
 
-def display_product_recommendations(products):
-    """Display product recommendations in a grid layout"""
-    cols = st.columns(3)  # Display 3 products per row
+def display_search_results(products):
+    """Display product search results in a grid layout"""
+    if not products:
+        return
+    
+    # Display results in a 3-column grid
+    cols = st.columns(3)
     
     for i, product in enumerate(products):
         with cols[i % 3]:
-            if product.get("image_url"):
-                try:
-                    st.image(product["image_url"], use_column_width=True)
-                except Exception:
-                    # Fallback if image can't be loaded
-                    st.error("Image not available")
-                    
-            st.markdown(f"### {product['name']}")
-            st.markdown(f"**${product['price']:.2f}** • {product.get('color', 'N/A')} • {product.get('rating', 0)} ⭐")
-            st.info(f"**Why this matches**: {product['reason']}")
+            # Container for each product
+            with st.container():
+                # Image
+                if product.get("image_url"):
+                    try:
+                        st.image(product["image_url"], use_column_width=True)
+                    except:
+                        st.error("Image not available")
+                
+                # Product details
+                st.markdown(f"### {product['name']}")
+                st.markdown(f"**${product['price']:.2f}** • {product.get('color', 'N/A').title()} • {product.get('rating', 0)} ⭐")
+                st.info(f"**Why this matches**: {product['reason']}")
 
 
-def export_filtered_products(df, filters):
-    """Export filtered products to CSV"""
-    filtered_df = filter_products(df, filters)
-    return filtered_df.to_csv(index=False).encode('utf-8')
+def main():
+    # Load inventory if not already loaded
+    if st.session_state.inventory_df is None:
+        st.session_state.inventory_df = load_default_inventory()
+    
+    # Show inventory overview in sidebar
+    show_inventory_overview()
+    
+    # Main content area
+    st.markdown("# 🛍️ Saleseer AI Product Recommendations")
+    st.markdown("## Find products using natural language!")
+    st.markdown("Try queries like: 'Show me red dresses under $200' or 'I want blue jeans'")
+    
+    # Search interface
+    st.markdown("## 🔍 Search Products")
+    
+    # Create a search form
+    col1, col2 = st.columns([5, 1])
+    
+    with col1:
+        search_query = st.text_input(
+            "What are you looking for?", 
+            placeholder="e.g., Show me red dresses under $200"
+        )
+    
+    with col2:
+        search_button = st.button("🔍 Search", type="primary")
+    
+    # Process search when button clicked
+    if search_button and search_query:
+        with st.spinner("Searching products..."):
+            results = process_search_query(search_query)
+            if results:
+                st.session_state.search_results = results
+                # Save to search history
+                st.session_state.search_history.append({
+                    "query": search_query,
+                    "filters": st.session_state.last_filters,
+                    "results_count": len(results)
+                })
+    
+    # Display search results
+    if st.session_state.search_results:
+        st.markdown(f"### Found {len(st.session_state.search_results)} matching products")
+        display_search_results(st.session_state.search_results)
 
 
 if __name__ == "__main__":
